@@ -18,3 +18,14 @@ class SigmaSampler(Sampler):
         posterior_beta = sigma.beta + (0.5 * (np.sum(np.square(model.residuals()))))
         draw = np.power(np.random.gamma(posterior_alpha, 1./posterior_beta), -0.5)
         return draw
+
+class ConstantSigmaSampler(Sampler):
+
+    def step(self, _: Model, sigma: Sigma) -> float:
+        sample_value = self.sample()
+        sigma.set_value(sample_value)
+        return sample_value
+
+    @staticmethod
+    def sample() -> float:
+        return 1.0
