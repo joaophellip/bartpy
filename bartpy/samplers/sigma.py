@@ -19,6 +19,7 @@ class SigmaSampler(Sampler):
         draw = np.power(np.random.gamma(posterior_alpha, 1./posterior_beta), -0.5)
         return draw
 
+
 class ConstantSigmaSampler(Sampler):
 
     def step(self, _: Model, sigma: Sigma) -> float:

@@ -11,7 +11,6 @@ from bartpy.sigma import Sigma
 from bartpy.split import Split
 from bartpy.tree import Tree, LeafNode, deep_copy_tree
 
-
 class Model:
 
     def __init__(self,

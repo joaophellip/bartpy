@@ -1,5 +1,4 @@
-from copy import deepcopy
-from typing import List, Callable, Mapping, Union, Optional
+from typing import Optional
 
 import numpy as np
 from sklearnmodel import SklearnModel
@@ -101,6 +100,8 @@ class ClassifierSklearnModel(SklearnModel):
 
         self.schedule = SampleSchedule(self.tree_sampler, LeafNodeSampler(), ConstantSigmaSampler())
         self.sampler = ModelSampler(self.schedule)
+
+    DEFAULT_CLASSIFICATION_RULE = 0.5
 
     # @staticmethod
     # def _combine_chains(extract: List[Chain]) -> Chain:

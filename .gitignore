@@ -8,3 +8,7 @@ bartpy.egg-info/top_level.txt
 *.pyc
 *catboost_info*
 *restats*
+%**
+.idea
+venv
+*csv
