@@ -76,6 +76,7 @@ class Model:
             yield tree
             self._prediction += tree.predict()
 
+    # TODO: update sigm_m to that of classification (3/k*sqrt(n))
     @property
     def sigma_m(self) -> float:
         return 0.5 / (self.k * np.power(self.n_trees, 0.5))

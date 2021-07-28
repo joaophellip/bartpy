@@ -46,6 +46,7 @@ class ModelSampler(Sampler):
         acceptance_trace = []
         print("Starting sampling")
 
+        # if it was me i'd use thin as the period (keep 1 sample from thin)
         thin_inverse = 1. / thin
 
         for ss in tqdm(range(n_samples)):

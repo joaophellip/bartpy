@@ -47,6 +47,9 @@ class SampleSchedule:
         Generator[Callable[[Model], Sampler], None, None]
             A generator a function to be called
         """
+
+        # TODO: generate Zi's (onde guardar?) (como acessar?) (como calcular?)
+        # (como calcular?): bartMachineClassification L61
         for tree in model.refreshed_trees():
             yield "Tree", lambda: self.tree_sampler.step(model, tree)
 

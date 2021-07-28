@@ -21,6 +21,7 @@ def log_grow_ratio(combined_node: LeafNode, left_node: LeafNode, right_node: Lea
     first_term = np.log(np.sqrt(first_term))
 
     combined_y_sum = combined_node.data.y.summed_y()
+    # TODO: in classification, the LR should be calculated over Zi's instead of Yi's
     left_y_sum = left_node.data.y.summed_y()
     right_y_sum = right_node.data.y.summed_y()
 
