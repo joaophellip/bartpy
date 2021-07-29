@@ -1,14 +1,13 @@
 from typing import Callable, Generator, Text, Tuple
 
 import numpy as np
-import pandas as pd
 
 from bartpy.model import Model
 from bartpy.samplers.leafnode import LeafNodeSampler
-from bartpy.samplers.sampler import Sampler
 from bartpy.samplers.sigma import SigmaSampler
 from bartpy.samplers.treemutation import TreeMutationSampler
-
+import random
+from scipy.stats import norm
 
 class SampleSchedule:
     """
@@ -32,6 +31,8 @@ class SampleSchedule:
         self.leaf_sampler = leaf_sampler
         self.sigma_sampler = sigma_sampler
         self.tree_sampler = tree_sampler
+        self.g = -1
+        self.z = -1
 
     def steps(self, model: Model) -> Generator[Tuple[Text, Callable[[], float]], None, None]:
         """
@@ -48,11 +49,31 @@ class SampleSchedule:
             A generator a function to be called
         """
 
-        # TODO: generate Zi's (onde guardar?) (como acessar?) (como calcular?)
-        # (como calcular?): bartMachineClassification L61
+        # See: https://github.com/kapelner/bartMachine/blob/master/src/bartMachine/bartMachineClassification.java L61
+        self.g = np.zeros(model.data.X.n_obsv)
+        for tree in model.trees:
+            self.g = [sum(x) for x in zip(self.g, tree.predict())]
+        self.z = self.sample_z(self.g, model.data.y.unnormalized_y)
+
+        for tree in model.trees:
+            for node in tree.nodes:
+                node.data.update_y(self.z)
+
         for tree in model.refreshed_trees():
             yield "Tree", lambda: self.tree_sampler.step(model, tree)
 
             for leaf_node in tree.leaf_nodes:
                 yield "Node", lambda: self.leaf_sampler.step(model, leaf_node)
         yield "Node", lambda: self.sigma_sampler.step(model, model.sigma)
+
+    # todo: test SampleZ and ConditionalZ against Java code (https://github.com/kapelner/bartMachine/blob/master/src/bartMachine/bartMachineClassification.java#L61)
+    def sample_z(self, g, y) -> np.ndarray:
+        return np.array([self.conditional_z(x[0], x[1]) for x in zip(g, y)])
+
+    def conditional_z(self, gi, yi) -> float:
+        u = random.uniform(0, 1)
+        if yi == 0:
+            return gi - norm.ppf((1-u)*norm.cdf(gi) + u)
+        elif yi == 1:
+            return gi + norm.ppf((1-u)*norm.cdf(-gi) + u)
+
