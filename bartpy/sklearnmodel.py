@@ -138,7 +138,7 @@ class SklearnModel(BaseEstimator, RegressorMixin):
             self with trained parameter values
         """
         self.model = self._construct_model(X, y)
-        self.extract = Parallel(n_jobs=self.n_jobs)(self.f_delayed_chains(X, y))
+        self.extract = Parallel(n_jobs=self.n_jobs)(self.f_delayed_chains(X, y))    # parallel models?
         self.combined_chains = self._combine_chains(self.extract)
         self._model_samples, self._prediction_samples = self.combined_chains["model"], self.combined_chains["in_sample_predictions"]
         self._acceptance_trace = self.combined_chains["acceptance"]
@@ -222,6 +222,7 @@ class SklearnModel(BaseEstimator, RegressorMixin):
         np.ndarray
             predictions for the X covariates
         """
+
         if X is None and self.store_in_sample_predictions:
             return self.data.y.unnormalize_y(np.mean(self._prediction_samples, axis=0))
         elif X is None and not self.store_in_sample_predictions:

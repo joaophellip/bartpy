@@ -12,3 +12,4 @@ bartpy.egg-info/top_level.txt
 .idea
 venv
 *csv
+*.joblib

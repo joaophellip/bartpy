@@ -1,7 +1,11 @@
-from typing import Optional
+from typing import Optional, Union
 
 import numpy as np
-from sklearnmodel import SklearnModel
+import pandas as pd
+
+from bartpy.model import ClassifierModel
+from bartpy.sigma import Sigma
+from bartpy.sklearnmodel import SklearnModel
 from bartpy.initializers.initializer import Initializer
 from bartpy.samplers.leafnode import LeafNodeSampler
 from bartpy.samplers.modelsampler import ModelSampler
@@ -9,6 +13,7 @@ from bartpy.samplers.schedule import SampleSchedule
 from bartpy.samplers.sigma import ConstantSigmaSampler
 from bartpy.samplers.treemutation import TreeMutationSampler
 from bartpy.samplers.unconstrainedtree.treemutation import get_tree_sampler
+
 
 def run_chain(model: 'SklearnModel', X: np.ndarray, y: np.ndarray):
     """
@@ -27,9 +32,7 @@ def run_chain(model: 'SklearnModel', X: np.ndarray, y: np.ndarray):
 def delayed_run_chain():
     return run_chain
 
-# See this for an implementation of a BART Classifier Wrapper: https://github.com/kapelner/bartMachine/blob/master/src/bartMachine/bartMachineClassificationMultThread.java
-# See this for the definition of the GibbsSample for classification: https://github.com/kapelner/bartMachine/blob/586f55bf4de5290793474f55a928695fbd508ac8/src/bartMachine/bartMachineClassification.java#L14
-# PS: Evaluate function should use a classification threshold (ex: classification_rule)
+
 class ClassifierSklearnModel(SklearnModel):
     """
     The main access point to building BART models for classification in BartPy
@@ -77,6 +80,19 @@ class ClassifierSklearnModel(SklearnModel):
         set to `-1` to use all cores
     """
 
+    def _construct_model(self, X: np.ndarray, y: np.ndarray) -> ClassifierModel:
+        if len(X) == 0 or X.shape[1] == 0:
+            raise ValueError("Empty covariate matrix passed")
+        self.data = self._convert_covariates_to_data(X, y)
+        self.sigma = Sigma(self.sigma_a, self.sigma_b, self.data.y.normalizing_scale)
+        self.model = ClassifierModel(self.data,
+                                     self.sigma,
+                                     n_trees=self.n_trees,
+                                     alpha=self.alpha,
+                                     beta=self.beta,
+                                     initializer=self.initializer)
+        return self.model
+
     def __init__(self,
                  n_trees: int = 200,
                  n_chains: int = 4,
@@ -87,77 +103,51 @@ class ClassifierSklearnModel(SklearnModel):
                  thin: float = 0.1,
                  alpha: float = 0.95,
                  beta: float = 2.,
-                 store_in_sample_predictions: bool=False,
-                 store_acceptance_trace: bool=False,
-                 tree_sampler: TreeMutationSampler=get_tree_sampler(0.5, 0.5),
-                 initializer: Optional[Initializer]=None,
+                 store_in_sample_predictions: bool = False,
+                 store_acceptance_trace: bool = False,
+                 tree_sampler: TreeMutationSampler = get_tree_sampler(0.5, 0.5),
+                 initializer: Optional[Initializer] = None,
                  n_jobs=-1):
 
         SklearnModel.__init__(self,
-            n_trees, n_chains, sigma_a, sigma_b, n_samples,
-            n_burn, thin, alpha, beta, store_in_sample_predictions, 
-            store_acceptance_trace, tree_sampler, initializer, n_jobs)
+                              n_trees, n_chains, sigma_a, sigma_b, n_samples,
+                              n_burn, thin, alpha, beta, store_in_sample_predictions,
+                              store_acceptance_trace, tree_sampler, initializer, n_jobs)
 
         self.schedule = SampleSchedule(self.tree_sampler, LeafNodeSampler(), ConstantSigmaSampler())
         self.sampler = ModelSampler(self.schedule)
+        self.DEFAULT_CLASSIFICATION_RULE = 0.5
 
-    DEFAULT_CLASSIFICATION_RULE = 0.5
+    def predict(self, X: np.ndarray = None) -> np.ndarray:
+        if X is None and self.store_in_sample_predictions:
+            binary_pred = [1 if x > self.DEFAULT_CLASSIFICATION_RULE else 0 for x in
+                           self.data.y.unnormalize_y(np.mean(self._prediction_samples, axis=0))]
+            return np.array(binary_pred)
+        elif X is None and not self.store_in_sample_predictions:
+            raise ValueError(
+                "In sample predictions only possible if model.store_in_sample_predictions is `True`.  Either set the parameter to True or pass a non-None X parameter")
+        else:
+            binary_pred = [1 if x > self.DEFAULT_CLASSIFICATION_RULE else 0 for x in self._out_of_sample_predict(X)]
+            return np.array(binary_pred)
 
-    # @staticmethod
-    # def _combine_chains(extract: List[Chain]) -> Chain:
-    #     keys = list(extract[0].keys())
-    #     combined = {}
-    #     for key in keys:
-    #         combined[key] = np.concatenate([chain[key] for chain in extract], axis=0)
-    #     return combined
+    def fit(self, X: Union[np.ndarray, pd.DataFrame], y: np.ndarray) -> 'SklearnModel':
+        """
+        Learn the model based on training data
 
-    # @staticmethod
-    # def _convert_covariates_to_data(X: np.ndarray, y: np.ndarray) -> Data:
-    #     from copy import deepcopy
-    #     if type(X) == pd.DataFrame:
-    #         X: pd.DataFrame = X
-    #         X = X.values
-    #     return Data(deepcopy(X), deepcopy(y), normalize=True)
+        Parameters
+        ----------
+        X: pd.DataFrame
+            training covariates
+        y: np.ndarray
+            training targets
 
-    # @property
-    # def model_samples(self) -> List[Model]:
-    #     """
-    #     Array of the model as it was after each sample.
-    #     Useful for examining for:
-
-    #      - examining the state of trees, nodes and sigma throughout the sampling
-    #      - out of sample prediction
-
-    #     Returns None if the model hasn't been fit
-
-    #     Returns
-    #     -------
-    #     List[Model]
-    #     """
-    #     return self._model_samples
-
-    # @property
-    # def acceptance_trace(self) -> List[Mapping[str, float]]:
-    #     """
-    #     List of Mappings from variable name to acceptance rates
-
-    #     Each entry is the acceptance rate of the variable in each iteration of the model
-
-    #     Returns
-    #     -------
-    #     List[Mapping[str, float]]
-    #     """
-    #     return self._acceptance_trace
-
-    # @property
-    # def prediction_samples(self) -> np.ndarray:
-    #     """
-    #     Matrix of prediction samples at each point in sampling
-    #     Useful for assessing convergence, calculating point estimates etc.
-
-    #     Returns
-    #     -------
-    #     np.ndarray
-    #         prediction samples with dimensionality n_samples * n_points
-    #     """
-    #     return self.prediction_samples
+        Returns
+        -------
+        SklearnModel
+            self with trained parameter values
+        """
+        assert y.max() - y.min() > 0, "in classification mode ymax should be greater than ymin. Perhaps increase" \
+                                      " sample size?"
+        assert len([yi for yi in y if yi != 0 and yi != 1]) == 0, "class labels in Y should only contain 0/1 for this" \
+                                                                  " binary classifier"
+        return super().fit(X, y)

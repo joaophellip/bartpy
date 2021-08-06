@@ -1,13 +1,14 @@
-from typing import Callable, Generator, Text, Tuple
+from typing import Callable, Generator, Text, Tuple, Union
 
 import numpy as np
 
 from bartpy.model import Model
 from bartpy.samplers.leafnode import LeafNodeSampler
-from bartpy.samplers.sigma import SigmaSampler
+from bartpy.samplers.sigma import SigmaSampler, ConstantSigmaSampler
 from bartpy.samplers.treemutation import TreeMutationSampler
 import random
 from scipy.stats import norm
+
 
 class SampleSchedule:
     """
@@ -27,7 +28,7 @@ class SampleSchedule:
     def __init__(self,
                  tree_sampler: TreeMutationSampler,
                  leaf_sampler: LeafNodeSampler,
-                 sigma_sampler: SigmaSampler):
+                 sigma_sampler: Union[SigmaSampler, ConstantSigmaSampler]):
         self.leaf_sampler = leaf_sampler
         self.sigma_sampler = sigma_sampler
         self.tree_sampler = tree_sampler
@@ -66,14 +67,17 @@ class SampleSchedule:
                 yield "Node", lambda: self.leaf_sampler.step(model, leaf_node)
         yield "Node", lambda: self.sigma_sampler.step(model, model.sigma)
 
-    # todo: test SampleZ and ConditionalZ against Java code (https://github.com/kapelner/bartMachine/blob/master/src/bartMachine/bartMachineClassification.java#L61)
     def sample_z(self, g, y) -> np.ndarray:
         return np.array([self.conditional_z(x[0], x[1]) for x in zip(g, y)])
 
-    def conditional_z(self, gi, yi) -> float:
+    @staticmethod
+    def conditional_z(gi, yi) -> float:
         u = random.uniform(0, 1)
         if yi == 0:
-            return gi - norm.ppf((1-u)*norm.cdf(gi) + u)
-        elif yi == 1:
-            return gi + norm.ppf((1-u)*norm.cdf(-gi) + u)
+            zi = gi - norm.ppf((1-u)*norm.cdf(gi) + u)
+            assert zi <= 0, "this should always be greater or equal zero"
+        else:
+            zi = gi + norm.ppf((1-u)*norm.cdf(-gi) + u)
+            assert zi >= 0, "this should always be less or equal zero"
+        return zi
 

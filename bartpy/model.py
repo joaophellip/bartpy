@@ -76,7 +76,6 @@ class Model:
             yield tree
             self._prediction += tree.predict()
 
-    # TODO: update sigm_m to that of classification (3/k*sqrt(n))
     @property
     def sigma_m(self) -> float:
         return 0.5 / (self.k * np.power(self.n_trees, 0.5))
@@ -89,3 +88,23 @@ class Model:
 def deep_copy_model(model: Model) -> Model:
     copied_model = Model(None, deepcopy(model.sigma), [deep_copy_tree(tree) for tree in model.trees])
     return copied_model
+
+
+class ClassifierModel(Model):
+
+    def __init__(self,
+                 data: Optional[Data],
+                 sigma: Sigma,
+                 trees: Optional[List[Tree]]=None,
+                 n_trees: int=50,
+                 alpha: float=0.95,
+                 beta: float=2.,
+                 k: int=2.,
+                 initializer: Initializer=SklearnTreeInitializer()):
+
+        Model.__init__(self, data, sigma, trees, n_trees, alpha, beta, k, initializer)
+
+    @property
+    def sigma_m(self) -> float:
+        return 3 / (self.k * np.power(self.n_trees, 0.5))
+

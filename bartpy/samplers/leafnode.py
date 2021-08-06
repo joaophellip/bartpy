@@ -23,12 +23,11 @@ class LeafNodeSampler(Sampler):
         node.set_value(sampled_value)
         return sampled_value
 
-    # TODO: check if var/mean update rule change.
-    # See: https://github.com/kapelner/bartMachine/blob/586f55bf4de5290793474f55a928695fbd508ac8/src/bartMachine/bartMachine_f_gibbs_internal.java#L22
     def sample(self, model: Model, node: LeafNode) -> float:
         prior_var = model.sigma_m ** 2
         n = node.data.X.n_obsv
         likihood_var = (model.sigma.current_value() ** 2) / n
+        assert model.sigma.current_value() == 1, " Sigma should always be 1!"
         likihood_mean = node.data.y.summed_y() / n
         posterior_variance = 1. / (1. / prior_var + 1. / likihood_var)
         posterior_mean = likihood_mean * (prior_var / (likihood_var + prior_var))
