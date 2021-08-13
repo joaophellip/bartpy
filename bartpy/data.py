@@ -208,7 +208,6 @@ class CovariateMatrix(object):
     def n_obsv(self) -> int:
         return self._n_obsv
 
-
 class Target(object):
 
     def __init__(self, y, mask, n_obsv, normalize, y_sum=None):
@@ -222,6 +221,7 @@ class Target(object):
         self._mask = mask
         self._inverse_mask_int = (~self._mask).astype(int)
         self._n_obsv = n_obsv
+        self._original_y = y    # added to be used in classification mode
 
         if y_sum is None:
             self.y_sum_cache_up_to_date = False

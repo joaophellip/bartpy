@@ -20,9 +20,9 @@ class ModelSampler(Sampler):
         self.schedule = schedule
         self.trace_logger_class = trace_logger_class
 
-    def step(self, model: Model, trace_logger: TraceLogger):
+    def step(self, model: Model, trace_logger: TraceLogger, idx: int = -1):
         step_result = defaultdict(list)
-        for step_kind, step in self.schedule.steps(model):
+        for step_kind, step in self.schedule.steps(model, idx):
             result = step()
             log_message = trace_logger[step_kind](result)
             if log_message is not None:
@@ -39,28 +39,28 @@ class ModelSampler(Sampler):
 
         trace_logger = self.trace_logger_class()
 
-        for _ in tqdm(range(n_burn)):
-            self.step(model, trace_logger)
+        for idx in tqdm(range(n_burn)):
+            self.step(model, trace_logger, idx+1)
         trace = []
         model_trace = []
         acceptance_trace = []
         print("Starting sampling")
 
-        # if it was me i'd use thin as the period (keep 1 sample from thin)
         thin_inverse = 1. / thin
 
         for ss in tqdm(range(n_samples)):
             step_trace_dict = self.step(model, trace_logger)
-            if ss % thin_inverse == 0:
-                if store_in_sample_predictions:
-                    in_sample_log = trace_logger["In Sample Prediction"](model.predict())
-                    if in_sample_log is not None:
-                        trace.append(in_sample_log)
-                if store_acceptance:
-                    acceptance_trace.append(step_trace_dict)
-                model_log = trace_logger["Model"](model)
-                if model_log is not None:
-                    model_trace.append(model_log)
+            #if ss % thin_inverse == 0:
+            if store_in_sample_predictions:
+                in_sample_log = trace_logger["In Sample Prediction"](model.predict())
+                if in_sample_log is not None:
+                    trace.append(in_sample_log)
+            if store_acceptance:
+                acceptance_trace.append(step_trace_dict)
+            model_log = trace_logger["Model"](model)
+            if model_log is not None:
+                model_trace.append(model_log)
+
         return {
             "model": model_trace,
             "acceptance": acceptance_trace,

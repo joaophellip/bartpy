@@ -9,7 +9,6 @@ from bartpy.samplers.treemutation import TreeMutationLikihoodRatio
 from bartpy.sigma import Sigma
 from bartpy.tree import Tree
 
-
 def log_grow_ratio(combined_node: LeafNode, left_node: LeafNode, right_node: LeafNode, sigma: Sigma, sigma_mu: float):
     var = np.power(sigma.current_value(), 2)
     var_mu = np.power(sigma_mu, 2)
@@ -21,7 +20,6 @@ def log_grow_ratio(combined_node: LeafNode, left_node: LeafNode, right_node: Lea
     first_term = np.log(np.sqrt(first_term))
 
     combined_y_sum = combined_node.data.y.summed_y()
-    # TODO: in classification, the LR should be calculated over Zi's instead of Yi's
     left_y_sum = left_node.data.y.summed_y()
     right_y_sum = right_node.data.y.summed_y()
 
@@ -68,6 +66,7 @@ class UniformTreeMutationLikihoodRatio(TreeMutationLikihoodRatio):
             proposal: PruneMutation = proposal
             return self.log_likihood_ratio_prune(model, proposal)
         else:
+            # TODO : why only 2 proposals (grow/prune? missing change?
             raise NotImplementedError("Only prune and grow mutations supported")
 
     @staticmethod

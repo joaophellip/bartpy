@@ -3,34 +3,19 @@ from typing import Optional, Union
 import numpy as np
 import pandas as pd
 
+from bartpy.data import Data
 from bartpy.model import ClassifierModel
 from bartpy.sigma import Sigma
 from bartpy.sklearnmodel import SklearnModel
 from bartpy.initializers.initializer import Initializer
 from bartpy.samplers.leafnode import LeafNodeSampler
 from bartpy.samplers.modelsampler import ModelSampler
-from bartpy.samplers.schedule import SampleSchedule
+from bartpy.samplers.schedule import ClassifierSampleSchedule
 from bartpy.samplers.sigma import ConstantSigmaSampler
 from bartpy.samplers.treemutation import TreeMutationSampler
 from bartpy.samplers.unconstrainedtree.treemutation import get_tree_sampler
 
-
-def run_chain(model: 'SklearnModel', X: np.ndarray, y: np.ndarray):
-    """
-    Run a single chain for a model
-    Primarily used as a building block for constructing a parallel run of multiple chains
-    """
-    model.model = model._construct_model(X, y)
-    return model.sampler.samples(model.model,
-                                 model.n_samples,
-                                 model.n_burn,
-                                 model.thin,
-                                 model.store_in_sample_predictions,
-                                 model.store_acceptance_trace)
-
-
-def delayed_run_chain():
-    return run_chain
+from scipy.stats import norm
 
 
 class ClassifierSklearnModel(SklearnModel):
@@ -84,11 +69,11 @@ class ClassifierSklearnModel(SklearnModel):
         if len(X) == 0 or X.shape[1] == 0:
             raise ValueError("Empty covariate matrix passed")
         self.data = self._convert_covariates_to_data(X, y)
-        self.sigma = Sigma(self.sigma_a, self.sigma_b, self.data.y.normalizing_scale)
+        self.sigma = Sigma(self.sigma_a, self.sigma_b, 1)   # scaling_factor can be anything. it will be ignored
         self.model = ClassifierModel(self.data,
                                      self.sigma,
                                      n_trees=self.n_trees,
-                                     alpha=self.alpha,
+                                     alpha=self.alpha,  
                                      beta=self.beta,
                                      initializer=self.initializer)
         return self.model
@@ -114,21 +99,21 @@ class ClassifierSklearnModel(SklearnModel):
                               n_burn, thin, alpha, beta, store_in_sample_predictions,
                               store_acceptance_trace, tree_sampler, initializer, n_jobs)
 
-        self.schedule = SampleSchedule(self.tree_sampler, LeafNodeSampler(), ConstantSigmaSampler())
+        self.schedule = ClassifierSampleSchedule(self.tree_sampler, LeafNodeSampler(), ConstantSigmaSampler())
         self.sampler = ModelSampler(self.schedule)
         self.DEFAULT_CLASSIFICATION_RULE = 0.5
 
     def predict(self, X: np.ndarray = None) -> np.ndarray:
         if X is None and self.store_in_sample_predictions:
             binary_pred = [1 if x > self.DEFAULT_CLASSIFICATION_RULE else 0 for x in
-                           self.data.y.unnormalize_y(np.mean(self._prediction_samples, axis=0))]
+                           np.mean(self._prediction_samples, axis=0)]
             return np.array(binary_pred)
         elif X is None and not self.store_in_sample_predictions:
             raise ValueError(
                 "In sample predictions only possible if model.store_in_sample_predictions is `True`.  Either set the parameter to True or pass a non-None X parameter")
         else:
-            binary_pred = [1 if x > self.DEFAULT_CLASSIFICATION_RULE else 0 for x in self._out_of_sample_predict(X)]
-            return np.array(binary_pred)
+            prob_pred = norm.cdf(self._out_of_sample_predict(X))
+            return prob_pred
 
     def fit(self, X: Union[np.ndarray, pd.DataFrame], y: np.ndarray) -> 'SklearnModel':
         """
@@ -151,3 +136,14 @@ class ClassifierSklearnModel(SklearnModel):
         assert len([yi for yi in y if yi != 0 and yi != 1]) == 0, "class labels in Y should only contain 0/1 for this" \
                                                                   " binary classifier"
         return super().fit(X, y)
+
+    def _out_of_sample_predict(self, X):
+        return np.mean([x.predict(X) for x in self._model_samples], axis=0)
+
+    @staticmethod
+    def _convert_covariates_to_data(X: np.ndarray, y: np.ndarray) -> Data:
+        from copy import deepcopy
+        if type(X) == pd.DataFrame:
+            X: pd.DataFrame = X
+            X = X.values
+        return Data(deepcopy(X), deepcopy(y), normalize=False)

@@ -27,14 +27,15 @@ def uniformly_sample_prune_mutation(tree: Tree) -> TreeMutation:
 class UniformMutationProposer(TreeMutationProposer):
 
     def __init__(self,
-                 prob_method: List[float]=None,
-                 prob_method_lookup: Mapping[Callable[[Tree], TreeMutation], float]=None):
+                 prob_method: List[float] = None,
+                 prob_method_lookup: Mapping[Callable[[Tree], TreeMutation], float] = None):
         if prob_method_lookup is not None:
             self.prob_method_lookup = prob_method_lookup
         else:
             if prob_method is None:
                 prob_method = [0.5, 0.5]
-            self.prob_method_lookup = {x[0]: x[1] for x in zip([uniformly_sample_grow_mutation, uniformly_sample_prune_mutation], prob_method)}
+            self.prob_method_lookup = {x[0]: x[1] for x in zip([uniformly_sample_grow_mutation,
+                                                                uniformly_sample_prune_mutation], prob_method)}
         self.methods = list(self.prob_method_lookup.keys())
         self.method_sampler = DiscreteSampler(list(self.prob_method_lookup.keys()),
                                               list(self.prob_method_lookup.values()),

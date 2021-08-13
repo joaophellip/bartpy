@@ -83,7 +83,6 @@ class SklearnModel(BaseEstimator, RegressorMixin):
         how many cores to use when computing MCMC samples
         set to `-1` to use all cores
     """
-    # TODO: update equivalent parameter 'hyper_mu_mu' from R (bartMachineClassification L92)
     def __init__(self,
                  n_trees: int = 200,
                  n_chains: int = 4,

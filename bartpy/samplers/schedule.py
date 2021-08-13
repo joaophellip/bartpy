@@ -32,10 +32,8 @@ class SampleSchedule:
         self.leaf_sampler = leaf_sampler
         self.sigma_sampler = sigma_sampler
         self.tree_sampler = tree_sampler
-        self.g = -1
-        self.z = -1
 
-    def steps(self, model: Model) -> Generator[Tuple[Text, Callable[[], float]], None, None]:
+    def steps(self, model: Model, _: int) -> Generator[Tuple[Text, Callable[[], float]], None, None]:
         """
         Create a generator of the steps that need to be called to complete a full Gibbs sample
 
@@ -50,15 +48,48 @@ class SampleSchedule:
             A generator a function to be called
         """
 
-        # See: https://github.com/kapelner/bartMachine/blob/master/src/bartMachine/bartMachineClassification.java L61
-        self.g = np.zeros(model.data.X.n_obsv)
+        for tree in model.refreshed_trees():
+            yield "Tree", lambda: self.tree_sampler.step(model, tree)
+
+            for leaf_node in tree.leaf_nodes:
+                yield "Node", lambda: self.leaf_sampler.step(model, leaf_node)
+        yield "Node", lambda: self.sigma_sampler.step(model, model.sigma)
+
+
+class ClassifierSampleSchedule:
+
+    def __init__(self,
+                 tree_sampler: TreeMutationSampler,
+                 leaf_sampler: LeafNodeSampler,
+                 sigma_sampler: Union[SigmaSampler, ConstantSigmaSampler]):
+        self.leaf_sampler = leaf_sampler
+        self.sigma_sampler = sigma_sampler
+        self.tree_sampler = tree_sampler
+
+    def steps(self, model: Model, _: int) -> Generator[Tuple[Text, Callable[[], float]], None, None]:
+        """
+        Create a generator of the steps that need to be called to complete a full Gibbs sample
+
+        Parameters
+        ----------
+        model: Model
+            The model being sampled
+
+        Returns
+        -------
+        Generator[Callable[[Model], Sampler], None, None]
+            A generator a function to be called
+        """
+
+        g = np.zeros(model.data.X.n_obsv)
         for tree in model.trees:
-            self.g = [sum(x) for x in zip(self.g, tree.predict())]
-        self.z = self.sample_z(self.g, model.data.y.unnormalized_y)
+            g = [sum(x) for x in zip(g, tree.predict())]
+        z = self.sample_z(g, model.data.y._original_y)
 
         for tree in model.trees:
             for node in tree.nodes:
-                node.data.update_y(self.z)
+                node.data.update_y(z)
+        model.data.update_y(z)
 
         for tree in model.refreshed_trees():
             yield "Tree", lambda: self.tree_sampler.step(model, tree)
@@ -74,10 +105,9 @@ class SampleSchedule:
     def conditional_z(gi, yi) -> float:
         u = random.uniform(0, 1)
         if yi == 0:
-            zi = gi - norm.ppf((1-u)*norm.cdf(gi) + u)
+            zi = gi - norm.ppf((1 - u) * norm.cdf(gi) + u)
             assert zi <= 0, "this should always be greater or equal zero"
         else:
-            zi = gi + norm.ppf((1-u)*norm.cdf(-gi) + u)
+            zi = gi + norm.ppf((1 - u) * norm.cdf(-gi) + u)
             assert zi >= 0, "this should always be less or equal zero"
         return zi
-

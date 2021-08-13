@@ -38,7 +38,9 @@ class UnconstrainedTreeMutationSampler(Sampler):
     def sample(self, model: Model, tree: Tree) -> Optional[TreeMutation]:
         proposal = self.proposer.propose(tree)
         ratio = self.likihood_ratio.log_probability_ratio(model, tree, proposal)
-        if self._scalar_sampler.sample() < ratio:
+        draw = self._scalar_sampler.sample()
+        if draw < ratio:
+            print(proposal)
             return proposal
         else:
             return None

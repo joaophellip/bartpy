@@ -19,20 +19,20 @@ class LeafNodeSampler(Sampler):
         self._scalar_sampler = scalar_sampler
 
     def step(self, model: Model, node: LeafNode) -> float:
-        sampled_value = self.sample(model, node)
+        sampled_value = self.sample(model, node)              # sampled_value == bartMachineTreeNode.y_pred
         node.set_value(sampled_value)
         return sampled_value
 
     def sample(self, model: Model, node: LeafNode) -> float:
-        prior_var = model.sigma_m ** 2
-        n = node.data.X.n_obsv
-        likihood_var = (model.sigma.current_value() ** 2) / n
-        assert model.sigma.current_value() == 1, " Sigma should always be 1!"
-        likihood_mean = node.data.y.summed_y() / n
+        prior_var = model.sigma_m ** 2                        # (cte) prior_var == bartMachine_b_hyperparameters.hyper_sigsq_mu 
+        n = node.data.X.n_obsv                                # n == bartMachineTreeNode.n_eta
+        likihood_var = (model.sigma.current_value() ** 2) / n # likihood_var == 1/bartMachineTreeNode.n_eta
+        likihood_mean = node.data.y.summed_y() / n            # likihood_mean == bartMachineTreeNode.avgResponse()
+
         posterior_variance = 1. / (1. / prior_var + 1. / likihood_var)
         posterior_mean = likihood_mean * (prior_var / (likihood_var + prior_var))
-        return posterior_mean + (self._scalar_sampler.sample() * np.power(posterior_variance / model.n_trees, 0.5))
-
+        #return posterior_mean + (self._scalar_sampler.sample() * np.power(posterior_variance / model.n_trees, 0.5))
+        return posterior_mean + (self._scalar_sampler.sample() * np.power(posterior_variance, 0.5))
 
 # class VectorizedLeafNodeSampler(Sampler):
 
